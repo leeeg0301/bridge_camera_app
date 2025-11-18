@@ -10,8 +10,8 @@ st.title("📸 교량 사진 자동 촬영 & 파일명 생성")
 # ------------------------------------
  # 1) 교량 데이터 불러오기
 # ------------------------------------
-bridge_file = "bridge.xlsx"
-csv_file = "bridge.csv"
+bridge_file = "data.xlsx"
+csv_file = "data.csv"
  
 df = None
 
@@ -71,6 +71,7 @@ if img is not None:
         file_name=filename,
         mime="image/jpeg"
     )
+
 
 
 
