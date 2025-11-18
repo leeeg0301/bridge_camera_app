@@ -1,4 +1,3 @@
-Enter "help" below or click "Help" above for more information.
 import streamlit as st
 import pandas as pd
 ... from datetime import datetime
@@ -72,5 +71,6 @@ if img is not None:
         file_name=filename,
         mime="image/jpeg"
     )
+
 
 
