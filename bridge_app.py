@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-... from datetime import datetime
-... import os
+from datetime import datetime
+import os
 ... 
 ... st.set_page_config(page_title="교량 사진 촬영기", layout="centered")
 ... 
@@ -71,6 +71,7 @@ if img is not None:
         file_name=filename,
         mime="image/jpeg"
     )
+
 
 
 
