@@ -19,7 +19,7 @@ if os.path.exists(bridge_file):
     df = pd.read_excel(bridge_file)
 elif os.path.exists(csv_file):
     df = pd.read_csv(csv_file)
- else:
+else:
     st.error("❌ bridge.xlsx 또는 bridge.csv 파일이 없습니다.")
     st.stop()
 
@@ -71,6 +71,7 @@ if img is not None:
         file_name=filename,
         mime="image/jpeg"
     )
+
 
 
 
