@@ -1,21 +1,19 @@
 import streamlit as st
 import pandas as pd
-import unicodedata
 
-# -----------------------
-# 1) GitHub CSV 읽기
-# -----------------------
+# --------------------------------------
+# 1) GitHub CSV 불러오기
+# --------------------------------------
 csv_url = "https://raw.githubusercontent.com/leeeg0301/bridge_camera_app/main/data.csv"
-
 df = pd.read_csv(csv_url)
 
-# name 컬럼에서 교량 리스트 추출
-bridges = df['name'].dropna().unique().tolist()
+# 교량 리스트
+bridges = df["name"].dropna().unique().tolist()
 
 
-# -----------------------
-# 한글 초성 검색 함수
-# -----------------------
+# --------------------------------------
+# 2) 한글 초성 추출 함수
+# --------------------------------------
 def get_choseong(text):
     CHO = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"]
     result = ""
@@ -29,37 +27,63 @@ def get_choseong(text):
     return result
 
 
-# -----------------------
-# Streamlit UI
-# -----------------------
+# --------------------------------------
+# 3) 통합 검색 함수 (초성 + 부분 + 중간)
+# --------------------------------------
+def filter_bridges(keyword, bridges):
+    if not keyword:
+        return bridges
+    
+    keyword_chosung = get_choseong(keyword)
+
+    filtered = []
+    for name in bridges:
+        name_chosung = get_choseong(name)
+
+        cond1 = keyword_chosung in name_chosung    # 초성 검색
+        cond2 = keyword in name                    # 부분 문자열 검색
+        cond3 = keyword in name                    # 중간 검색 (같은 로직)
+
+        if cond1 or cond2 or cond3:
+            filtered.append(name)
+
+    return filtered
+
+
+# --------------------------------------
+# 4) Streamlit UI
+# --------------------------------------
 st.title("📸 교량 점검 사진 자동 파일명 생성기")
 
-search_key = st.text_input("교량 검색 (초성 가능: 'ㅂ' → 부춘2교)")
+search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산 / 산 / 천)")
 
-if search_key:
-    filtered = [b for b in bridges if get_choseong(b).startswith(search_key)]
-else:
-    filtered = bridges
-
-bridge = st.selectbox("교량 선택", filtered)
+filtered_bridges = filter_bridges(search_key, bridges)
+bridge = st.selectbox("교량 선택", filtered_bridges)
 
 direction = st.selectbox("방향", ["순천", "영암"])
-location = st.selectbox("위치", ["A1","A2","P1","P2","P3","P4"])
-desc = st.text_input("내용 (예: 균열, 박리, 파손)")
+location = st.selectbox("위치 (A1/A2/P1~P4)", ["A1", "A2", "P1", "P2", "P3", "P4"])
+desc = st.text_input("내용 (예: 균열, 박리, 파손 등 입력)")
 
-# -----------------------
-# 카메라 입력
-# -----------------------
-photo = st.camera_input("사진 촬영")
 
+# --------------------------------------
+# 5) 카메라로 사진 촬영
+# --------------------------------------
+photo = st.camera_input("📷 사진 촬영")
+
+
+# --------------------------------------
+# 6) 파일명 생성 및 다운로드
+# --------------------------------------
 if photo and bridge and desc:
-    file_name = f"{bridge}.{direction}.{location}.{desc}.jpg"
+    filename = f"{bridge}.{direction}.{location}.{desc}.jpg"
 
     st.download_button(
-        "📥 사진 저장",
+        label=f"📥 {filename} 저장",
         data=photo.getvalue(),
-        file_name=file_name,
+        file_name=filename,
         mime="image/jpeg"
     )
 
-    st.success(f"파일명 생성됨: **{file_name}**")
+    st.success(f"✔ 생성된 파일명: **{filename}**")
+else:
+    st.info("사진을 찍으면 자동으로 파일명 생성 버튼이 표시됩니다.")
