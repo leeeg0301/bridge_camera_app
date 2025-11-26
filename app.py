@@ -4,12 +4,6 @@ from PIL import Image
 import io
 
 # --------------------------------------
-# 세션 상태 초기화 (업로더용 key)
-# --------------------------------------
-if "uploader_key" not in st.session_state:
-    st.session_state["uploader_key"] = 0
-
-# --------------------------------------
 # GitHub CSV 불러오기
 # --------------------------------------
 csv_url = "https://raw.githubusercontent.com/leeeg0301/bridge_camera_app/main/data.csv"
@@ -59,45 +53,37 @@ def advanced_filter(keyword, bridges):
 
 
 # --------------------------------------
-# UI 시작
+# UI
 # --------------------------------------
-st.title("📸 교량 점검 사진 자동 파일명 생성기 (안정 버전)")
+st.title("📸 교량 점검 사진 자동 파일명 생성기 (초기화 선택형)")
 
-# 🔹 교량 검색
+# 교량 검색
 search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산)", key="search_box")
 filtered = advanced_filter(search_key, bridges)
 
-# 🔹 교량 선택
-bridge = st.selectbox("교량 선택", filtered, key="bridge_select")
+bridge = st.selectbox("교량 선택", filtered)
+direction = st.selectbox("방향", ["순천", "영암"])
 
-# 🔹 방향
-direction = st.selectbox("방향 선택", ["순천", "영암"], key="dir_select")
-
-# 🔹 위치 (P6~P11 포함, radio = 입력 불가)
-location_list = [
-    "A1", "A2",
-    "P1", "P2", "P3", "P4", "P5",
-    "P6", "P7", "P8", "P9", "P10", "P11"
-]
-
-location = st.radio("위치 선택", location_list, key="loc_select")
-
-# 🔹 내용 desc (텍스트 입력 유지)
-desc = st.text_input("내용 입력", key="desc_input")
-
-
-# --------------------------------------
-# 파일 업로드 (업로더 key를 session_state로 관리)
-# --------------------------------------
-uploaded = st.file_uploader(
-    "📷 사진 촬영 또는 선택",
-    type=["jpg", "jpeg", "png", "heic", "heif"],
-    key=f"upload_file_{st.session_state['uploader_key']}"
+# 위치 라디오 선택 (P6~P11 포함)
+location = st.radio(
+    "위치 선택",
+    ["A1", "A2",
+     "P1", "P2", "P3", "P4", "P5",
+     "P6", "P7", "P8", "P9", "P10", "P11"
+    ],horizontal = false
 )
 
+# 내용 입력
+desc = st.text_input("내용 입력", key="desc_input")
+
+# 파일 업로드 (key 충돌 방지 위해 고정 key 사용 X)
+uploaded = st.file_uploader(
+    "📷 사진 촬영 또는 선택",
+    type=["jpg", "jpeg", "png", "heic", "heif"]
+)
 
 # --------------------------------------
-# 파일 처리 및 저장
+# 저장 처리
 # --------------------------------------
 if uploaded and bridge and desc:
 
@@ -107,35 +93,37 @@ if uploaded and bridge and desc:
     if ext in ["heic", "heif"]:
         try:
             import pillow_heif
+            image_data = uploaded.read()
+            heif_file = pillow_heif.read_heif(image_data)
+            img = Image.frombytes(heif_file.mode, heif_file.size, heif_file.data)
         except:
-            st.error("⚠ HEIC 변환을 위해 requirements.txt에 'pillow-heif'를 추가해야 합니다.")
+            st.error("⚠ requirements.txt에 pillow-heif 추가 필요")
             st.stop()
-
-        image_data = uploaded.read()
-        heif_file = pillow_heif.read_heif(image_data)
-        img = Image.frombytes(heif_file.mode, heif_file.size, heif_file.data)
-
     else:
         img = Image.open(uploaded)
 
-    # JPG 변환
     img_bytes = io.BytesIO()
     img.save(img_bytes, format="JPEG", quality=95)
     img_bytes.seek(0)
 
-    # 파일명 만들기
     filename = f"{bridge}.{direction}.{location}.{desc}.jpg"
 
-    # 다운로드 버튼
     saved = st.download_button(
         label=f"📥 저장: {filename}",
         data=img_bytes,
         file_name=filename,
-        mime="image/jpeg",
-        key="download_btn"
+        mime="image/jpeg"
     )
 
-    # 저장 후: 업로더만 초기화 (desc/선택값 유지)
+    # 저장되면 초기화 여부 질문
     if saved:
-        st.session_state["uploader_key"] += 1  # 업로더 key 변경 → 위젯 새로 생성
-        st.experimental_rerun()
+        st.success("저장 완료!")
+
+        choice = st.radio(
+            "📌 다음 작업을 선택하세요:",
+            ("초기화 안함 (계속 촬영)", "초기화하기")
+        )
+
+        if choice == "초기화하기":
+            st.info("초기화되었습니다! 새로운 사진을 선택하세요.")
+            st.experimental_rerun()
