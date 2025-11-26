@@ -55,7 +55,7 @@ def advanced_filter(keyword, bridges):
 # --------------------------------------
 # UI
 # --------------------------------------
-st.title("📸 교량 점검 사진 자동 파일명 생성기 (초기화 없음 버전)")
+st.title("파일명 생성기")
 
 # 교량 검색 + 선택
 search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산)", key="search_box")
@@ -63,7 +63,7 @@ filtered = advanced_filter(search_key, bridges)
 bridge = st.selectbox("교량 선택", filtered, key="bridge_select")
 
 # 방향
-direction = st.selectbox("방향", ["순천", "영암"], key="dir_select")
+#direction = st.selectbox("방향", ["순천", "영암"], key="dir_select")
 
 # 위치 (P6~P11 포함)
 location = st.radio(
@@ -122,3 +122,4 @@ if uploaded and bridge and desc:
         file_name=filename,
         mime="image/jpeg"
     )
+
