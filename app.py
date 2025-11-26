@@ -70,7 +70,7 @@ location = st.radio(
     ["A1", "A2",
      "P1", "P2", "P3", "P4", "P5",
      "P6", "P7", "P8", "P9", "P10", "P11"
-    ],horizontal = false
+    ],horizontal = True
 )
 
 # 내용 입력
@@ -127,3 +127,4 @@ if uploaded and bridge and desc:
         if choice == "초기화하기":
             st.info("초기화되었습니다! 새로운 사진을 선택하세요.")
             st.experimental_rerun()
+
