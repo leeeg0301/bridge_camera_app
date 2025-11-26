@@ -113,7 +113,7 @@ if uploaded and bridge and desc:
     img_bytes.seek(0)
 
     # 파일명 생성
-    filename = f"{bridge}.{direction}.{location}.{desc}.jpg"
+    filename = f"{bridge}.{location}.{desc}.jpg"
 
     # 다운로드 버튼만 제공 (초기화 없음)
     st.download_button(
@@ -122,4 +122,5 @@ if uploaded and bridge and desc:
         file_name=filename,
         mime="image/jpeg"
     )
+
 
