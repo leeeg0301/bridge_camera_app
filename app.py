@@ -60,8 +60,8 @@ search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산 / 산 / 천)"
 filtered = advanced_filter(search_key, bridges)
 bridge = st.selectbox("교량 선택", filtered)
 
-direction = st.selectbox("방향", ["순천", "영암"])
-location = st.selectbox("위치", ["A1","A2","P1","P2","P3","P4"])
+direction = st.selectbox("방향", ["순천", "영암", " "])
+location = st.selectbox("위치", ["A1","A2","P1","P2","P3","P4","P5","P6","P7","P8","P9","P10","P11"])
 
 # desc는 key로 session_state에 저장 → 초기화 안함
 desc = st.text_input("내용 입력", key="desc")
@@ -111,5 +111,6 @@ if uploaded and bridge and desc:
     if saved:
         st.session_state['uploaded_file'] = None   # 파일만 초기화
         st.experimental_rerun()
+
 
 
