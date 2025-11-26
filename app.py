@@ -28,7 +28,7 @@ def get_choseong(text):
     return result
 
 # --------------------------------------
-# 고도화 검색(정확도 우선)
+# 고도화 검색
 # --------------------------------------
 def advanced_filter(keyword, bridges):
     if not keyword:
@@ -51,19 +51,24 @@ def advanced_filter(keyword, bridges):
 
     return exact + starts + contains + chosung
 
+
 # --------------------------------------
 # UI
 # --------------------------------------
-st.title("자동 교량사진 ")
+st.title("📸 교량 점검 사진 자동 파일명 생성기 (모바일 최적화)")
 
-search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산 / 산 / 천)")
+# 🔹 교량 검색 (입력창)
+search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산)", key="search_box")
 filtered = advanced_filter(search_key, bridges)
+
+# 🔹 교량 선택 (selectbox)
 bridge = st.selectbox("교량 선택", filtered)
 
-direction = st.selectbox("방향", ["순천", "영암", " "])
-location = st.selectbox("위치", ["A1","A2","P1","P2","P3","P4","P5","P6","P7","P8","P9","P10","P11"])
+# 🔹 방향/위치 = 선택식 (키보드 안뜸)
+direction = st.selectbox("방향", ["순천", "영암"])
+location = st.selectbox("위치", ["A1", "A2", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11"])
 
-# desc는 key로 session_state에 저장 → 초기화 안함
+# 🔹 내용 desc = 텍스트 입력(키보드 O)
 desc = st.text_input("내용 입력", key="desc")
 
 # --------------------------------------
@@ -107,10 +112,7 @@ if uploaded and bridge and desc:
         key="download_btn"
     )
 
-    # 저장 후 업로드만 초기화 + 리프레시
+    # 저장 후 업로드만 초기화
     if saved:
-        st.session_state['uploaded_file'] = None   # 파일만 초기화
+        st.session_state['uploaded_file'] = None
         st.experimental_rerun()
-
-
-
