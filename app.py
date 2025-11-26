@@ -55,35 +55,40 @@ def advanced_filter(keyword, bridges):
 # --------------------------------------
 # UI
 # --------------------------------------
-st.title("📸 교량 점검 사진 자동 파일명 생성기 (초기화 선택형)")
+st.title("📸 교량 점검 사진 자동 파일명 생성기 (초기화 없음 버전)")
 
-# 교량 검색
+# 교량 검색 + 선택
 search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산)", key="search_box")
 filtered = advanced_filter(search_key, bridges)
+bridge = st.selectbox("교량 선택", filtered, key="bridge_select")
 
-bridge = st.selectbox("교량 선택", filtered)
-direction = st.selectbox("방향", ["순천", "영암"])
+# 방향
+direction = st.selectbox("방향", ["순천", "영암"], key="dir_select")
 
-# 위치 라디오 선택 (P6~P11 포함)
+# 위치 (P6~P11 포함)
 location = st.radio(
     "위치 선택",
     ["A1", "A2",
      "P1", "P2", "P3", "P4", "P5",
-     "P6", "P7", "P8", "P9", "P10", "P11"
-    ],horizontal = True
+     "P6", "P7", "P8", "P9", "P10", "P11"],
+    horizontal=True,
+    key="loc_select"
 )
 
 # 내용 입력
 desc = st.text_input("내용 입력", key="desc_input")
 
-# 파일 업로드 (key 충돌 방지 위해 고정 key 사용 X)
+# --------------------------------------
+# 파일 업로드
+# --------------------------------------
 uploaded = st.file_uploader(
     "📷 사진 촬영 또는 선택",
-    type=["jpg", "jpeg", "png", "heic", "heif"]
+    type=["jpg", "jpeg", "png", "heic", "heif"],
+    key="upload"
 )
 
 # --------------------------------------
-# 저장 처리
+# 파일 처리 + 다운로드만
 # --------------------------------------
 if uploaded and bridge and desc:
 
@@ -102,29 +107,18 @@ if uploaded and bridge and desc:
     else:
         img = Image.open(uploaded)
 
+    # JPG 변환
     img_bytes = io.BytesIO()
     img.save(img_bytes, format="JPEG", quality=95)
     img_bytes.seek(0)
 
+    # 파일명 생성
     filename = f"{bridge}.{direction}.{location}.{desc}.jpg"
 
-    saved = st.download_button(
+    # 다운로드 버튼만 제공 (초기화 없음)
+    st.download_button(
         label=f"📥 저장: {filename}",
         data=img_bytes,
         file_name=filename,
         mime="image/jpeg"
     )
-
-    # 저장되면 초기화 여부 질문
-    if saved:
-        st.success("저장 완료!")
-
-        choice = st.radio(
-            "📌 다음 작업을 선택하세요:",
-            ("초기화 안함 (계속 촬영)", "초기화하기")
-        )
-
-        if choice == "초기화하기":
-            st.info("초기화되었습니다! 새로운 사진을 선택하세요.")
-            st.experimental_rerun()
-
