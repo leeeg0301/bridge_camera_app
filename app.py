@@ -12,7 +12,7 @@ df = pd.read_csv(csv_url)
 bridges = df["name"].dropna().unique().tolist()
 
 # --------------------------------------
-# 초성 추출
+# 초성 추출 함수
 # --------------------------------------
 CHO = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"]
 
@@ -28,7 +28,7 @@ def get_choseong(text):
     return result
 
 # --------------------------------------
-# 고도화 검색
+# 고도화 검색 함수
 # --------------------------------------
 def advanced_filter(keyword, bridges):
     if not keyword:
@@ -55,7 +55,7 @@ def advanced_filter(keyword, bridges):
 # --------------------------------------
 # UI
 # --------------------------------------
-st.title("파일명 생성기")
+st.title("📸 교량 점검 사진 자동 파일명 생성기")
 
 # 교량 검색 + 선택
 search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산)", key="search_box")
@@ -63,9 +63,9 @@ filtered = advanced_filter(search_key, bridges)
 bridge = st.selectbox("교량 선택", filtered, key="bridge_select")
 
 # 방향
-#direction = st.selectbox("방향", ["순천", "영암"], key="dir_select")
+direction = st.selectbox("방향", ["순천", "영암"], key="dir_select")
 
-# 위치 (P6~P11 포함)
+# 위치
 location = st.radio(
     "위치 선택",
     ["A1", "A2",
@@ -76,17 +76,11 @@ location = st.radio(
 )
 
 # 내용 입력
-col1, col2 = st.columns([4,1])
+desc = st.text_input("내용 입력", key="desc_input_widget")
 
-with col1:
-    desc = st.text_input("내용 입력", key="desc_input_widget")
 
-with col2:
-    if st.button("❌", key="clear_desc"):
-        st.session_state["desc_input_widget"] = ""
-        st.experimental_rerun()
 # --------------------------------------
-# 파일 업로드
+# 사진 업로드
 # --------------------------------------
 uploaded = st.file_uploader(
     "📷 사진 촬영 또는 선택",
@@ -95,7 +89,7 @@ uploaded = st.file_uploader(
 )
 
 # --------------------------------------
-# 파일 처리 + 다운로드만
+# 파일 처리 & 저장
 # --------------------------------------
 if uploaded and bridge and desc:
 
@@ -111,6 +105,7 @@ if uploaded and bridge and desc:
         except:
             st.error("⚠ requirements.txt에 pillow-heif 추가 필요")
             st.stop()
+
     else:
         img = Image.open(uploaded)
 
@@ -120,9 +115,9 @@ if uploaded and bridge and desc:
     img_bytes.seek(0)
 
     # 파일명 생성
-    filename = f"{bridge}.{location}.{desc}.jpg"
+    filename = f"{bridge}.{direction}.{location}.{desc}.jpg"
 
-    # 다운로드 버튼만 제공 (초기화 없음)
+    # 다운로드 버튼
     st.download_button(
         label=f"📥 저장: {filename}",
         data=img_bytes,
@@ -131,5 +126,10 @@ if uploaded and bridge and desc:
     )
 
 
-
-
+# --------------------------------------
+# 페이지 맨 아래 전체 초기화 버튼
+# --------------------------------------
+st.markdown("---")
+if st.button("🔄 전체 초기화 (모든 값 리셋)"):
+    st.session_state.clear()
+    st.experimental_rerun()
