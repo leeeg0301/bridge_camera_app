@@ -55,7 +55,7 @@ def advanced_filter(keyword, bridges):
 # --------------------------------------
 # UI
 # --------------------------------------
-st.title("📸 교량 점검 사진 자동 파일명 생성기")
+st.title("교량 점검 사진")
 
 # 교량 검색 + 선택
 search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산)", key="search_box")
@@ -133,3 +133,4 @@ st.markdown("---")
 if st.button("🔄 전체 초기화 (모든 값 리셋)"):
     st.session_state.clear()
     st.experimental_rerun()
+
