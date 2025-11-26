@@ -76,7 +76,15 @@ location = st.radio(
 )
 
 # 내용 입력
-desc = st.text_input("내용 입력", key="desc_input")
+col1, col2 = st.columns([4,1])
+
+with col1:
+    desc = st.text_input("내용 입력", key="desc_input")
+
+with col2:
+    if st.button("❌", key="clear_desc"):
+        st.session_state["desc_input"] = ""
+        st.experimental_rerun()
 
 # --------------------------------------
 # 파일 업로드
@@ -122,5 +130,6 @@ if uploaded and bridge and desc:
         file_name=filename,
         mime="image/jpeg"
     )
+
 
 
