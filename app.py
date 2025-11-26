@@ -55,7 +55,7 @@ def advanced_filter(keyword, bridges):
 # --------------------------------------
 # UI
 # --------------------------------------
-st.title("📸 교량 점검 사진 자동 파일명 생성기 (모바일 최적화)")
+st.title("교량사진 자동")
 
 # 🔹 교량 검색 (입력창)
 search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산)", key="search_box")
@@ -75,7 +75,7 @@ desc = st.text_input("내용 입력", key="desc")
 # 파일 업로드 (카메라/앨범)
 # --------------------------------------
 uploaded = st.file_uploader(
-    "📷 사진 촬영 또는 선택",
+    "사진 촬영 또는 선택",
     type=["jpg","jpeg","png","heic","heif"],
     key="uploaded_file"
 )
@@ -116,3 +116,4 @@ if uploaded and bridge and desc:
     if saved:
         st.session_state['uploaded_file'] = None
         st.experimental_rerun()
+
