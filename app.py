@@ -54,7 +54,7 @@ def advanced_filter(keyword, bridges):
 # --------------------------------------
 # UI
 # --------------------------------------
-st.title("교량 점검 사진 자동화")
+st.title("자동 교량사진 ")
 
 search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산 / 산 / 천)")
 filtered = advanced_filter(search_key, bridges)
@@ -111,4 +111,5 @@ if uploaded and bridge and desc:
     if saved:
         st.session_state['uploaded_file'] = None   # 파일만 초기화
         st.experimental_rerun()
+
 
