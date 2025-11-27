@@ -4,12 +4,22 @@ from PIL import Image
 import io
 
 # --------------------------------------
+# 업로더 키 초기값 (업로드 초기화용)
+# --------------------------------------
+if "upload_key" not in st.session_state:
+    st.session_state["upload_key"] = 0
+
+
+
+# --------------------------------------
 # GitHub CSV 불러오기
 # --------------------------------------
 csv_url = "https://raw.githubusercontent.com/leeeg0301/bridge_camera_app/main/data.csv"
 df = pd.read_csv(csv_url)
 
 bridges = df["name"].dropna().unique().tolist()
+
+
 
 # --------------------------------------
 # 초성 추출 함수
@@ -26,6 +36,8 @@ def get_choseong(text):
         else:
             result += ch
     return result
+
+
 
 # --------------------------------------
 # 고도화 검색 함수
@@ -52,10 +64,11 @@ def advanced_filter(keyword, bridges):
     return exact + starts + contains + chosung
 
 
+
 # --------------------------------------
 # UI
 # --------------------------------------
-st.title("교량 점검 사진")
+st.title("📸 교량 점검 사진 자동 파일명 생성기")
 
 # 교량 검색 + 선택
 search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산)", key="search_box")
@@ -65,7 +78,7 @@ bridge = st.selectbox("교량 선택", filtered, key="bridge_select")
 # 방향
 direction = st.selectbox("방향", ["순천", "영암"], key="dir_select")
 
-# 위치
+# 위치 선택
 location = st.radio(
     "위치 선택",
     ["A1", "A2",
@@ -75,18 +88,21 @@ location = st.radio(
     key="loc_select"
 )
 
-# 내용 입력
+# 내용
 desc = st.text_input("내용 입력", key="desc_input_widget")
 
 
+
 # --------------------------------------
-# 사진 업로드
+# 사진 업로드 (업로더 key로 완전 초기화 지원)
 # --------------------------------------
 uploaded = st.file_uploader(
     "📷 사진 촬영 또는 선택",
     type=["jpg", "jpeg", "png", "heic", "heif"],
-    key="upload"
+    key=f"upload_{st.session_state['upload_key']}"
 )
+
+
 
 # --------------------------------------
 # 파일 처리 & 저장
@@ -103,7 +119,7 @@ if uploaded and bridge and desc:
             heif_file = pillow_heif.read_heif(image_data)
             img = Image.frombytes(heif_file.mode, heif_file.size, heif_file.data)
         except:
-            st.error("⚠ requirements.txt에 pillow-heif 추가 필요")
+            st.error("⚠ requirements.txt 에 pillow-heif 추가해야 HEIC 변환 가능!")
             st.stop()
 
     else:
@@ -114,7 +130,6 @@ if uploaded and bridge and desc:
     img.save(img_bytes, format="JPEG", quality=95)
     img_bytes.seek(0)
 
-    # 파일명 생성
     filename = f"{bridge}.{direction}.{location}.{desc}.jpg"
 
     # 다운로드 버튼
@@ -126,12 +141,12 @@ if uploaded and bridge and desc:
     )
 
 
+
 # --------------------------------------
 # 페이지 맨 아래 전체 초기화 버튼
 # --------------------------------------
 st.markdown("---")
 if st.button("🔄 전체 초기화 (모든 값 리셋)"):
-    st.session_state.clear()
-    st.rerun()   # ← 요걸로 변경
-
-
+    st.session_state.clear()        # 전체 세션 초기화
+    st.session_state["upload_key"] = 0  # 업로더 키는 직접 재생성
+    st.rerun()                      # 최신 Streamlit 방식
