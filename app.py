@@ -132,5 +132,6 @@ if uploaded and bridge and desc:
 st.markdown("---")
 if st.button("🔄 전체 초기화 (모든 값 리셋)"):
     st.session_state.clear()
-    st.experimental_rerun()
+    st.rerun()   # ← 요걸로 변경
+
 
