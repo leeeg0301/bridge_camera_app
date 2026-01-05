@@ -121,7 +121,7 @@ def advanced_filter(keyword, bridges):
 # ======================================
 # UI
 # ======================================
-st.title("📷 점검사진 파일명 생성기 (폴더 분류 ZIP)")
+st.title("점검사진 분류 자동화")
 
 search = st.text_input("교량 검색")
 bridge_list = advanced_filter(search, bridges)
@@ -224,3 +224,4 @@ st.markdown("---")
 if st.button("🔄 전체 초기화"):
     st.session_state.clear()
     st.rerun()
+
