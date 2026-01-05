@@ -38,11 +38,9 @@ st.title("교량 점검사진 자동 정리 (하이픈 구분자 + ZIP 폴더 �
 # =========================
 with st.sidebar:
     st.header("교량 목록(CSV) 설정")
-    csv_url = st.text_input(
-        "GitHub raw CSV URL",
-        value="https://raw.githubusercontent.com/계정/레포/main/bridge_list.csv",
-    )
-    st.caption("URL은 문자열로만 정확히 입력하세요(설명 문장 섞지 않기).")
+    csv_url = "https://raw.githubusercontent.com/leeeg0301/bridge_camera_app/main/data.csv"
+    df = pd.read_csv(csv_url)
+    bridges = df["name"].dropna().unique().tolist()
 
 try:
     df = load_bridge_list(csv_url)
@@ -144,3 +142,4 @@ if uploaded:
     )
 else:
     st.info("사진을 업로드하면 ZIP 다운로드 버튼이 생깁니다.")
+
