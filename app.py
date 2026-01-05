@@ -139,3 +139,4 @@ st.markdown("---")
 if st.button("🔄 전체 초기화"):
     st.session_state.clear()
     st.rerun()
+
