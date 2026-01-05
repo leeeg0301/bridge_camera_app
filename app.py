@@ -2,27 +2,24 @@ import streamlit as st
 import pandas as pd
 from PIL import Image
 import io
+import zipfile
+import os
 
 # --------------------------------------
-# 업로더 키 초기값 (업로드 초기화용)
+# 세션 초기화
 # --------------------------------------
-if "upload_key" not in st.session_state:
-    st.session_state["upload_key"] = 0
-
-
+if "saved_images" not in st.session_state:
+    st.session_state["saved_images"] = []
 
 # --------------------------------------
 # GitHub CSV 불러오기
 # --------------------------------------
 csv_url = "https://raw.githubusercontent.com/leeeg0301/bridge_camera_app/main/data.csv"
 df = pd.read_csv(csv_url)
-
 bridges = df["name"].dropna().unique().tolist()
 
-
-
 # --------------------------------------
-# 초성 추출 함수
+# 초성 추출
 # --------------------------------------
 CHO = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"]
 
@@ -31,125 +28,114 @@ def get_choseong(text):
     for ch in text:
         if '가' <= ch <= '힣':
             code = ord(ch) - ord('가')
-            cho = code // (21 * 28)
-            result += CHO[cho]
+            result += CHO[code // (21 * 28)]
         else:
             result += ch
     return result
 
-
-
-# --------------------------------------
-# 고도화 검색 함수
-# --------------------------------------
 def advanced_filter(keyword, bridges):
     if not keyword:
         return bridges
 
-    keyword_chosung = get_choseong(keyword)
+    key_cho = get_choseong(keyword)
     exact, starts, contains, chosung = [], [], [], []
 
-    for name in bridges:
-        name_chosung = get_choseong(name)
-
-        if name == keyword:
-            exact.append(name)
-        elif name.startswith(keyword):
-            starts.append(name)
-        elif keyword in name:
-            contains.append(name)
-        elif keyword_chosung in name_chosung:
-            chosung.append(name)
+    for b in bridges:
+        b_cho = get_choseong(b)
+        if b == keyword:
+            exact.append(b)
+        elif b.startswith(keyword):
+            starts.append(b)
+        elif keyword in b:
+            contains.append(b)
+        elif key_cho in b_cho:
+            chosung.append(b)
 
     return exact + starts + contains + chosung
-
-
 
 # --------------------------------------
 # UI
 # --------------------------------------
-st.title("점검사진 생성기")
+st.title("📷 점검사진 파일명 생성기 (ZIP 저장)")
 
-# 교량 검색 + 선택
-search_key = st.text_input("교량 검색 (예: ㅂ / 부 / 부산)", key="search_box")
-filtered = advanced_filter(search_key, bridges)
-bridge = st.selectbox("교량 선택", filtered, key="bridge_select")
+search = st.text_input("교량 검색")
+bridge_list = advanced_filter(search, bridges)
+bridge = st.selectbox("교량 선택", bridge_list)
 
-# 방향
-direction = st.selectbox("방향", ["순천", "영암"], key="dir_select")
+direction = st.selectbox("방향", ["순천", "영암"])
 
-# 위치 선택
 location = st.radio(
-    "위치 선택",
-    ["A1", "A2",
-     "P1", "P2", "P3", "P4", "P5",
-     "P6", "P7", "P8", "P9", "P10", "P11",
-     "S1", "S2", "S3", "S4", "S5",
-     "S6", "S7", "S8", "S9", "S10", "S11"],
-    horizontal=True,
-    key="loc_select"
+    "위치",
+    ["A1","A2",
+     "P1","P2","P3","P4","P5","P6","P7","P8","P9","P10","P11",
+     "S1","S2","S3","S4","S5","S6","S7","S8","S9","S10","S11"],
+    horizontal=True
 )
 
-# 내용
-desc = st.text_input("내용 입력", key="desc_input_widget")
+desc = st.text_input("내용 (예: 균열, 박리, 누수)")
 
-
-
-# --------------------------------------
-# 사진 업로드 (업로더 key로 완전 초기화 지원)
-# --------------------------------------
 uploaded = st.file_uploader(
-    "📷 사진 촬영 또는 선택",
-    type=["jpg", "jpeg", "png", "heic", "heif"],
-    key=f"upload_{st.session_state['upload_key']}"
+    "사진 선택 (여러 장 가능)",
+    type=["jpg","jpeg","png","heic","heif"],
+    accept_multiple_files=True
 )
 
-
-
 # --------------------------------------
-# 파일 처리 & 저장
+# 사진 저장 (세션에 누적)
 # --------------------------------------
-if uploaded and bridge and desc:
+if st.button("➕ 사진 추가 저장"):
 
-    ext = uploaded.name.split(".")[-1].lower()
-
-    # HEIC 변환
-    if ext in ["heic", "heif"]:
-        try:
-            import pillow_heif
-            image_data = uploaded.read()
-            heif_file = pillow_heif.read_heif(image_data)
-            img = Image.frombytes(heif_file.mode, heif_file.size, heif_file.data)
-        except:
-            st.error("⚠ requirements.txt 에 pillow-heif 추가해야 HEIC 변환 가능!")
-            st.stop()
-
+    if not (uploaded and bridge and desc):
+        st.warning("사진 / 교량 / 내용은 필수입니다.")
     else:
-        img = Image.open(uploaded)
+        for file in uploaded:
+            ext = file.name.split(".")[-1].lower()
 
-    # JPG 변환
-    img_bytes = io.BytesIO()
-    img.save(img_bytes, format="JPEG", quality=95)
-    img_bytes.seek(0)
+            if ext in ["heic", "heif"]:
+                try:
+                    import pillow_heif
+                    heif = pillow_heif.read_heif(file.read())
+                    img = Image.frombytes(heif.mode, heif.size, heif.data)
+                except:
+                    st.error("HEIC 변환 불가 (pillow-heif 필요)")
+                    continue
+            else:
+                img = Image.open(file)
 
-    filename = f"{bridge}.{direction}.{location}.{desc}.jpg"
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=95)
+            buf.seek(0)
 
-    # 다운로드 버튼
+            filename = f"{bridge}.{direction}.{location}.{desc}.jpg"
+
+            st.session_state["saved_images"].append(
+                (filename, buf.getvalue())
+            )
+
+        st.success(f"현재 저장된 사진 수: {len(st.session_state['saved_images'])}장")
+
+# --------------------------------------
+# ZIP 다운로드
+# --------------------------------------
+if st.session_state["saved_images"]:
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, data in st.session_state["saved_images"]:
+            zf.writestr(name, data)
+
+    zip_buf.seek(0)
+
     st.download_button(
-        label=f"📥 저장: {filename}",
-        data=img_bytes,
-        file_name=filename,
-        mime="image/jpeg"
+        "📦 ZIP으로 전체 저장",
+        data=zip_buf,
+        file_name=f"{bridge}_점검사진.zip",
+        mime="application/zip"
     )
 
-
-
 # --------------------------------------
-# 페이지 맨 아래 전체 초기화 버튼
+# 전체 초기화
 # --------------------------------------
 st.markdown("---")
-if st.button("🔄 전체 초기화 (모든 값 리셋)"):
-    st.session_state.clear()        # 전체 세션 초기화
-    st.session_state["upload_key"] = 0  # 업로더 키는 직접 재생성
-    st.rerun()                      # 최신 Streamlit 방식
-
+if st.button("🔄 전체 초기화"):
+    st.session_state.clear()
+    st.rerun()
