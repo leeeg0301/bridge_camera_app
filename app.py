@@ -17,26 +17,20 @@ def safe_text(s: str) -> str:
     if s is None:
         return ""
     s = str(s).strip()
-    # 윈도우 금지문자 제거
     for ch in r'<>:"/\|?*':
         s = s.replace(ch, "")
-    # 하이픈 구분자 충돌 방지(입력값 안의 하이픈은 '_'로)
+    # 구분자(-) 충돌 최소화
     s = s.replace("-", "_")
-    # 점(.)은 확장자와 헷갈릴 수 있어 '_'로
+    # 점(.)은 확장자와 헷갈릴 수 있어 치환
     s = s.replace(".", "_")
-    # 공백 정리
     s = " ".join(s.split())
     return s
 
 def unique_name(name: str, used: set) -> str:
-    """
-    파일명 중복 방지:
-    같은 이름이 이미 있으면 (2), (3) ... 붙여서 유니크하게 만듦
-    """
+    """같은 이름이 이미 있으면 (2),(3)... 붙여 유니크하게"""
     if name not in used:
         used.add(name)
         return name
-
     base, ext = name.rsplit(".", 1)
     i = 2
     while f"{base}({i}).{ext}" in used:
@@ -60,10 +54,8 @@ def load_image_bytes(file) -> bytes | None:
     else:
         img = Image.open(file)
 
-    # 스마트폰 회전정보 반영
     img = ImageOps.exif_transpose(img)
 
-    # JPEG 저장을 위해 RGB로
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")
 
@@ -85,7 +77,7 @@ if "used_names" not in st.session_state:
     st.session_state["used_names"] = set()
 
 # ======================================
-# 교량 목록 로드 (GitHub raw)
+# 교량 목록 로드
 # ======================================
 csv_url = "https://raw.githubusercontent.com/leeeg0301/bridge_camera_app/main/data.csv"
 df = pd.read_csv(csv_url)
@@ -129,7 +121,7 @@ def advanced_filter(keyword, bridges):
 # ======================================
 # UI
 # ======================================
-st.title("📷 점검사진 파일명 생성기 (내용 선택 / 점검일 제거 / 중복 자동처리)")
+st.title("📷 점검사진 파일명 생성기 (폴더 분류 ZIP)")
 
 search = st.text_input("교량 검색")
 bridge_list = advanced_filter(search, bridges)
@@ -145,8 +137,12 @@ location = st.radio(
     horizontal=True
 )
 
-# ✅ 내용은 선택(안 적어도 됨)
+# ✅ 내용 선택(안 적어도 됨)
 desc = st.text_input("내용 (선택)  예: 균열, 박리, 누수")
+
+# ✅ ZIP 내부 폴더 분류 옵션
+make_folders = st.checkbox("ZIP 내부를 폴더별로 분류해서 저장", value=True)
+st.caption("폴더 구조: 교량/방향/위치/ (원하면 교량/위치/ 로 더 줄일 수 있음)")
 
 uploaded = st.file_uploader(
     "사진 선택 (여러 장 가능)",
@@ -158,7 +154,6 @@ uploaded = st.file_uploader(
 # 사진 저장
 # ======================================
 if st.button("➕ 사진 추가"):
-    # ✅ 필수: 사진 + 교량 (내용 desc는 선택)
     if not (uploaded and bridge):
         st.warning("사진 / 교량은 필수입니다.")
     else:
@@ -173,29 +168,32 @@ if st.button("➕ 사진 추가"):
             if data is None:
                 continue
 
-            # ✅ 파일명 구성: (내용이 있으면 포함, 없으면 제외)
+            # 파일명: 교량-방향-위치(-내용).jpg  (내용 있으면 포함)
             parts = [bridge_s, direction_s, location_s]
             if desc_s:
                 parts.append(desc_s)
 
             filename = DELIM.join(parts) + ".jpg"
-
-            # ✅ 같은 이름이 나오면 자동으로 (2), (3) 붙여서 중복 방지
             filename = unique_name(filename, st.session_state["used_names"])
 
-            # 세션 저장
-            st.session_state["saved_images"].append((filename, data))
-            st.session_state["saved_names"].append(filename)
+            # ✅ ZIP 내부 경로(폴더 분류)
+            if make_folders:
+                arcname = f"{bridge_s}/{direction_s}/{location_s}/{filename}"
+            else:
+                arcname = filename
+
+            st.session_state["saved_images"].append((arcname, data))
+            st.session_state["saved_names"].append(arcname)
             added += 1
 
         st.success(f"추가 완료: {added}장 / 현재 저장된 사진 수: {len(st.session_state['saved_names'])}장")
 
 # ======================================
-# 저장 예정 파일명 표시
+# 저장 예정 표시
 # ======================================
 if st.session_state["saved_names"]:
-    st.markdown("### 📄 저장 예정 파일명")
-    st.caption("ZIP 파일 안에 아래 이름으로 저장됩니다. (중복 시 (2),(3) 자동 추가)")
+    st.markdown("### 📄 저장 예정 경로/파일명")
+    st.caption("ZIP 파일 안에 아래 경로로 저장됩니다.")
     for name in st.session_state["saved_names"]:
         st.text(name)
 
@@ -205,8 +203,8 @@ if st.session_state["saved_names"]:
 if st.session_state["saved_images"]:
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for name, data in st.session_state["saved_images"]:
-            zf.writestr(name, data)
+        for arcname, data in st.session_state["saved_images"]:
+            zf.writestr(arcname, data)
 
     zip_buf.seek(0)
 
