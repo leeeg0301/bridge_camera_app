@@ -3,13 +3,11 @@ import pandas as pd
 from PIL import Image, ImageOps
 import io
 import zipfile
-from datetime import date
 
 # ======================================
 # 설정
 # ======================================
 DELIM = "-"  # 하이픈 구분자
-DEFAULT_DATE = date.today().strftime("%Y%m%d")
 
 # ======================================
 # 유틸
@@ -22,13 +20,30 @@ def safe_text(s: str) -> str:
     # 윈도우 금지문자 제거
     for ch in r'<>:"/\|?*':
         s = s.replace(ch, "")
-    # 구분자인 '-'가 내용에 들어오면 파싱 애매해질 수 있어 '_'로 치환
+    # 하이픈 구분자 충돌 방지(입력값 안의 하이픈은 '_'로)
     s = s.replace("-", "_")
-    # 점(.)은 구분자/확장자와 헷갈릴 수 있으니 '_'로 치환(원하면 제거 가능)
+    # 점(.)은 확장자와 헷갈릴 수 있어 '_'로
     s = s.replace(".", "_")
-    # 연속 공백 정리
+    # 공백 정리
     s = " ".join(s.split())
     return s
+
+def unique_name(name: str, used: set) -> str:
+    """
+    파일명 중복 방지:
+    같은 이름이 이미 있으면 (2), (3) ... 붙여서 유니크하게 만듦
+    """
+    if name not in used:
+        used.add(name)
+        return name
+
+    base, ext = name.rsplit(".", 1)
+    i = 2
+    while f"{base}({i}).{ext}" in used:
+        i += 1
+    new = f"{base}({i}).{ext}"
+    used.add(new)
+    return new
 
 def load_image_bytes(file) -> bytes | None:
     """업로드 파일을 JPEG bytes로 변환(HEIC/HEIF 포함), EXIF 회전 반영"""
@@ -66,8 +81,8 @@ if "saved_images" not in st.session_state:
 if "saved_names" not in st.session_state:
     st.session_state["saved_names"] = []
 
-if "seq" not in st.session_state:
-    st.session_state["seq"] = 0  # 전체 사진 일련번호
+if "used_names" not in st.session_state:
+    st.session_state["used_names"] = set()
 
 # ======================================
 # 교량 목록 로드 (GitHub raw)
@@ -114,15 +129,13 @@ def advanced_filter(keyword, bridges):
 # ======================================
 # UI
 # ======================================
-st.title(" 점검사진 파일명 생성기")
+st.title("📷 점검사진 파일명 생성기 (내용 선택 / 점검일 제거 / 중복 자동처리)")
 
 search = st.text_input("교량 검색")
 bridge_list = advanced_filter(search, bridges)
 bridge = st.selectbox("교량 선택", bridge_list)
 
 direction = st.selectbox("방향", ["순천", "영암"])
-
-insp_date = st.text_input("점검일 (YYYYMMDD)", value=DEFAULT_DATE)
 
 location = st.radio(
     "위치",
@@ -132,11 +145,8 @@ location = st.radio(
     horizontal=True
 )
 
-desc = st.text_input("내용 (예: 균열, 박리, 누수)")
-
-# ZIP 안에 폴더 구조로 저장할지
-make_folders = st.checkbox("ZIP 내부를 폴더 구조로 저장", value=True)
-st.caption("폴더 예시: 교량/점검일/방향/위치/파일.jpg")
+# ✅ 내용은 선택(안 적어도 됨)
+desc = st.text_input("내용 (선택)  예: 균열, 박리, 누수")
 
 uploaded = st.file_uploader(
     "사진 선택 (여러 장 가능)",
@@ -148,14 +158,14 @@ uploaded = st.file_uploader(
 # 사진 저장
 # ======================================
 if st.button("➕ 사진 추가"):
-    if not (uploaded and bridge and desc):
-        st.warning("사진 / 교량 / 내용은 필수입니다.")
+    # ✅ 필수: 사진 + 교량 (내용 desc는 선택)
+    if not (uploaded and bridge):
+        st.warning("사진 / 교량은 필수입니다.")
     else:
         bridge_s = safe_text(bridge)
         direction_s = safe_text(direction)
         location_s = safe_text(location)
         desc_s = safe_text(desc)
-        date_s = safe_text(insp_date)
 
         added = 0
         for file in uploaded:
@@ -163,20 +173,19 @@ if st.button("➕ 사진 추가"):
             if data is None:
                 continue
 
-            st.session_state["seq"] += 1
-            seq = f"{st.session_state['seq']:03d}"
+            # ✅ 파일명 구성: (내용이 있으면 포함, 없으면 제외)
+            parts = [bridge_s, direction_s, location_s]
+            if desc_s:
+                parts.append(desc_s)
 
-            # ✅ 파일명: 하이픈 구분자 (점(.) 사용 X, 확장자만 .jpg)
-            filename = f"{bridge_s}{DELIM}{direction_s}{DELIM}{location_s}{DELIM}{desc_s}{DELIM}{seq}.jpg"
+            filename = DELIM.join(parts) + ".jpg"
 
-            # ✅ ZIP 내부 경로(폴더 구조)
-            if make_folders:
-                arcname = f"{bridge_s}/{date_s}/{direction_s}/{location_s}/{filename}"
-            else:
-                arcname = filename
+            # ✅ 같은 이름이 나오면 자동으로 (2), (3) 붙여서 중복 방지
+            filename = unique_name(filename, st.session_state["used_names"])
 
-            st.session_state["saved_images"].append((arcname, data))
-            st.session_state["saved_names"].append(arcname)
+            # 세션 저장
+            st.session_state["saved_images"].append((filename, data))
+            st.session_state["saved_names"].append(filename)
             added += 1
 
         st.success(f"추가 완료: {added}장 / 현재 저장된 사진 수: {len(st.session_state['saved_names'])}장")
@@ -185,8 +194,8 @@ if st.button("➕ 사진 추가"):
 # 저장 예정 파일명 표시
 # ======================================
 if st.session_state["saved_names"]:
-    st.markdown("### 📄 저장 예정 경로/파일명")
-    st.caption("ZIP 파일 안에 아래 경로로 저장됩니다.")
+    st.markdown("### 📄 저장 예정 파일명")
+    st.caption("ZIP 파일 안에 아래 이름으로 저장됩니다. (중복 시 (2),(3) 자동 추가)")
     for name in st.session_state["saved_names"]:
         st.text(name)
 
@@ -196,19 +205,17 @@ if st.session_state["saved_names"]:
 if st.session_state["saved_images"]:
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for arcname, data in st.session_state["saved_images"]:
-            zf.writestr(arcname, data)
+        for name, data in st.session_state["saved_images"]:
+            zf.writestr(name, data)
 
     zip_buf.seek(0)
 
-    # zip 이름도 안전하게
     zip_bridge = safe_text(bridge) if bridge else "점검사진"
-    zip_date = safe_text(insp_date) if insp_date else DEFAULT_DATE
 
     st.download_button(
         "📦 ZIP 전체 저장",
         data=zip_buf,
-        file_name=f"{zip_bridge}_{zip_date}_점검사진.zip",
+        file_name=f"{zip_bridge}_점검사진.zip",
         mime="application/zip"
     )
 
