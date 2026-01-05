@@ -33,9 +33,6 @@ def load_image(uploaded):
     buf.seek(0)
     return buf.getvalue()
 
-def bytes_to_image(data):
-    return Image.open(io.BytesIO(data))
-
 # ======================================
 # 교량 목록
 # ======================================
@@ -53,12 +50,12 @@ LOCATION_OPTIONS = [
 ]
 
 # ======================================
-# GUI 탭 (페이지 전환)
+# 탭 GUI
 # ======================================
-tab1, tab2 = st.tabs(["📷 1페이지 : 사진 촬영 / 파일명 생성", "📦 2페이지 : 사진 분류 / ZIP"])
+tab1, tab2 = st.tabs(["📷 1페이지 : 사진 저장", "📦 2페이지 : 사진 분류 / ZIP"])
 
 # ======================================
-# 1페이지
+# 1페이지 : 파일명 생성
 # ======================================
 with tab1:
     st.header("📷 사진 파일명 생성")
@@ -69,18 +66,18 @@ with tab1:
     desc = st.text_input("내용 (선택)", placeholder="예: 균열, 박리, 누수")
 
     uploaded = st.file_uploader(
-        "사진 선택 (1장씩)",
+        "사진 선택 (1장)",
         type=["jpg", "jpeg", "png"]
     )
 
     if uploaded:
         img_bytes = load_image(uploaded)
+
         parts = [safe_text(bridge), safe_text(direction), safe_text(location)]
         if desc:
             parts.append(safe_text(desc))
-        filename = DELIM.join(parts) + ".jpg"
 
-        st.image(bytes_to_image(img_bytes), caption="미리보기", width=400)
+        filename = DELIM.join(parts) + ".jpg"
 
         st.download_button(
             "📥 파일명 적용해서 저장",
@@ -89,12 +86,12 @@ with tab1:
             mime="image/jpeg"
         )
 
-        st.success(f"저장 파일명: {filename}")
+        st.success(f"저장될 파일명: {filename}")
 
-    st.info("✔ 현장에서는 여기서 바로 저장 → 나중에 2페이지에서 분류")
+    st.info("✔ 현장에서는 여기서 저장 → 나중에 2페이지에서 한꺼번에 분류")
 
 # ======================================
-# 2페이지
+# 2페이지 : 분류 & ZIP
 # ======================================
 with tab2:
     st.header("📦 사진 선택 → 폴더 분류 → ZIP")
@@ -105,34 +102,23 @@ with tab2:
         accept_multiple_files=True
     )
 
-    make_folders = st.checkbox("교량 / 방향 / 위치 폴더 자동 분류", value=True)
+    make_folders = st.checkbox(
+        "교량 / 방향 / 위치 기준으로 폴더 분류",
+        value=True
+    )
 
     if uploaded_files:
-        if "preview" not in st.session_state:
-            st.session_state.preview = None
-
-        st.markdown("### 📂 파일 리스트 (클릭 = 미리보기)")
+        st.markdown("### 📄 ZIP에 포함할 파일 선택")
 
         for i, f in enumerate(uploaded_files):
             if f"chk{i}" not in st.session_state:
                 st.session_state[f"chk{i}"] = True
 
-            col1, col2 = st.columns([0.05, 0.95])
-            with col1:
-                st.checkbox("", key=f"chk{i}")
-            with col2:
-                if st.button(f.name, key=f"btn{i}"):
-                    st.session_state.preview = i
+            st.checkbox(f.name, key=f"chk{i}")
 
         st.markdown("---")
 
-        if st.session_state.preview is not None:
-            f = uploaded_files[st.session_state.preview]
-            img = bytes_to_image(f.read())
-            st.image(img, caption=f.name, use_column_width=True)
-            f.seek(0)
-
-        if st.button("📦 선택한 사진 ZIP 생성"):
+        if st.button("📦 ZIP 생성"):
             zip_buf = io.BytesIO()
             with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
                 for i, f in enumerate(uploaded_files):
@@ -142,11 +128,11 @@ with tab2:
                         parts = base.split(DELIM)
 
                         if make_folders and len(parts) >= 3:
-                            arc = f"{parts[0]}/{parts[1]}/{parts[2]}/{fname}"
+                            arcname = f"{parts[0]}/{parts[1]}/{parts[2]}/{fname}"
                         else:
-                            arc = fname
+                            arcname = fname
 
-                        zf.writestr(arc, f.read())
+                        zf.writestr(arcname, f.read())
                         f.seek(0)
 
             zip_buf.seek(0)
@@ -158,4 +144,4 @@ with tab2:
             )
 
     else:
-        st.info("사진을 업로드하면 분류 화면이 나타납니다.")
+        st.info("사진을 업로드하면 분류 리스트가 표시됩니다.")
