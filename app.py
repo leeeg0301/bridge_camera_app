@@ -1,132 +1,226 @@
 import streamlit as st
-from pathlib import Path
-import zipfile
+import pandas as pd
+from PIL import Image, ImageOps
 import io
+import zipfile
 
-st.set_page_config(page_title="점검사진 폴더분류 ZIP", layout="wide")
+# ======================================
+# 설정
+# ======================================
+DELIM = "-"  # 하이픈 구분자
 
-IMG_EXTS = {".jpg", ".jpeg", ".png", ".heic", ".heif"}  # 이미 JPEG로 저장해두면 jpg만으로도 OK
-DELIM = "-"  # 파일명 구분자
-
-def safe_part(s: str) -> str:
-    # ZIP 내부 폴더명 안전화
-    s = (s or "").strip()
+# ======================================
+# 유틸
+# ======================================
+def safe_text(s: str) -> str:
+    """파일/폴더명에 쓰기 위험한 문자 제거 + 구분자 충돌 최소화"""
+    if s is None:
+        return ""
+    s = str(s).strip()
     for ch in r'<>:"/\|?*':
-        s = s.replace(ch, "_")
+        s = s.replace(ch, "")
+    # 구분자(-) 충돌 최소화
+    s = s.replace("-", "_")
+    # 점(.)은 확장자와 헷갈릴 수 있어 치환
+    s = s.replace(".", "_")
     s = " ".join(s.split())
     return s
 
-def parse_parts(filename: str):
-    """
-    기대 파일명 예:
-      교량-방향-위치.jpg
-      교량-방향-위치(2).jpg
-    """
-    stem = Path(filename).stem  # 확장자 제거
-    parts = stem.split(DELIM)
-    # 최소 3개 필요: 교량, 방향, 위치
-    if len(parts) < 3:
-        return None
-    bridge = safe_part(parts[0])
-    direction = safe_part(parts[1])
-    location = safe_part(parts[2])
-    return bridge, direction, location
+def unique_name(name: str, used: set) -> str:
+    """같은 이름이 이미 있으면 (2),(3)... 붙여 유니크하게"""
+    if name not in used:
+        used.add(name)
+        return name
+    base, ext = name.rsplit(".", 1)
+    i = 2
+    while f"{base}({i}).{ext}" in used:
+        i += 1
+    new = f"{base}({i}).{ext}"
+    used.add(new)
+    return new
 
-def list_images(folder: Path):
-    files = []
-    for p in folder.rglob("*"):
-        if p.is_file() and p.suffix.lower() in IMG_EXTS:
-            files.append(p)
-    return sorted(files)
+def load_image_bytes(file) -> bytes | None:
+    """업로드 파일을 JPEG bytes로 변환(HEIC/HEIF 포함), EXIF 회전 반영"""
+    ext = file.name.split(".")[-1].lower()
 
-st.title("📦 점검사진 파일명 기반 폴더분류 → ZIP 생성")
-st.caption("전제: 사진이 이미 '내 폴더'에 저장되어 있고, 파일명이 '교량-방향-위치.jpg' 규칙을 따른다.")
-
-base_dir_str = st.text_input("분류할 사진 폴더 경로", value="")
-st.caption("예) Windows: C:\\Users\\me\\Pictures\\inspection   |   Mac: /Users/me/Pictures/inspection")
-
-only_top = st.checkbox("하위 폴더까지 포함(rglob)", value=True)
-
-if st.button("🔍 폴더 스캔"):
-    if not base_dir_str.strip():
-        st.error("폴더 경로를 입력해 주세요.")
-        st.stop()
-
-    base_dir = Path(base_dir_str)
-    if not base_dir.exists() or not base_dir.is_dir():
-        st.error("유효한 폴더 경로가 아닙니다.")
-        st.stop()
-
-    if only_top:
-        files = list_images(base_dir)
+    if ext in ["heic", "heif"]:
+        try:
+            import pillow_heif
+            heif = pillow_heif.read_heif(file.read())
+            img = Image.frombytes(heif.mode, heif.size, heif.data)
+        except Exception:
+            st.error("HEIC/HEIF 변환 실패 (pillow-heif 필요)")
+            return None
     else:
-        files = [p for p in base_dir.iterdir() if p.is_file() and p.suffix.lower() in IMG_EXTS]
+        img = Image.open(file)
 
-    st.session_state["scanned_dir"] = str(base_dir)
-    st.session_state["files"] = [str(p) for p in files]
+    img = ImageOps.exif_transpose(img)
 
-if "files" in st.session_state:
-    files = [Path(p) for p in st.session_state["files"]]
-    st.write(f"스캔 결과: {len(files)}개")
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
 
-    # 미리 분류 통계
-    ok, bad = 0, 0
-    sample_bad = []
-    for p in files:
-        parts = parse_parts(p.name)
-        if parts is None:
-            bad += 1
-            if len(sample_bad) < 5:
-                sample_bad.append(p.name)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=95)
+    return buf.getvalue()
+
+# ======================================
+# 세션 초기화
+# ======================================
+if "saved_images" not in st.session_state:
+    # (arcname, bytes)
+    st.session_state["saved_images"] = []
+
+if "saved_names" not in st.session_state:
+    st.session_state["saved_names"] = []
+
+if "used_names" not in st.session_state:
+    st.session_state["used_names"] = set()
+
+# ======================================
+# 교량 목록 로드
+# ======================================
+csv_url = "https://raw.githubusercontent.com/leeeg0301/bridge_camera_app/main/data.csv"
+df = pd.read_csv(csv_url)
+bridges = df["name"].dropna().unique().tolist()
+
+# ======================================
+# 초성 검색
+# ======================================
+CHO = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"]
+
+def get_choseong(text):
+    result = ""
+    for ch in text:
+        if '가' <= ch <= '힣':
+            code = ord(ch) - ord('가')
+            result += CHO[code // (21 * 28)]
         else:
-            ok += 1
+            result += ch
+    return result
 
-    col1, col2 = st.columns(2)
-    col1.metric("규칙 일치 파일", ok)
-    col2.metric("미분류(규칙 불일치)", bad)
+def advanced_filter(keyword, bridges):
+    if not keyword:
+        return bridges
 
-    if sample_bad:
-        st.warning("아래 파일은 '교량-방향-위치.jpg' 형식이 아니라서 _미분류로 들어갑니다:")
-        for n in sample_bad:
-            st.text(n)
+    k_cho = get_choseong(keyword)
+    exact, starts, contains, chosung = [], [], [], []
 
-    st.markdown("---")
-    st.subheader("ZIP 생성")
+    for b in bridges:
+        b_cho = get_choseong(b)
+        if b == keyword:
+            exact.append(b)
+        elif b.startswith(keyword):
+            starts.append(b)
+        elif keyword in b:
+            contains.append(b)
+        elif k_cho in b_cho:
+            chosung.append(b)
 
-    zip_name = st.text_input("ZIP 파일명", value="점검사진_폴더분류.zip")
-    include_unclassified = st.checkbox("규칙 불일치 파일도 _미분류 폴더로 포함", value=True)
+    return exact + starts + contains + chosung
 
-    # ZIP 내부 폴더 구조 선택 (네가 원한: 교량/방향/위치)
-    st.caption("ZIP 내부 구조: 교량/방향/위치/원본파일명")
+# ======================================
+# UI
+# ======================================
+st.title("📷 점검사진 파일명 생성기 (폴더 분류 ZIP)")
 
-    if st.button("🧩 폴더분류 실행 → ZIP 만들기"):
-        if not files:
-            st.error("파일이 없습니다.")
-            st.stop()
+search = st.text_input("교량 검색")
+bridge_list = advanced_filter(search, bridges)
+bridge = st.selectbox("교량 선택", bridge_list)
 
-        zip_buf = io.BytesIO()
-        with zipfile.ZipFile(zip_buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-            for fp in files:
-                parts = parse_parts(fp.name)
-                if parts is None:
-                    if not include_unclassified:
-                        continue
-                    arcname = f"_미분류/{fp.name}"
-                else:
-                    bridge, direction, location = parts
-                    arcname = f"{bridge}/{direction}/{location}/{fp.name}"
+direction = st.selectbox("방향", ["순천", "영암"])
 
-                # 디스크 파일을 바로 ZIP에 넣음(메모리에 사진 bytes 안 쌓음)
-                zf.write(fp, arcname=arcname)
+location = st.radio(
+    "위치",
+    ["A1","A2",
+     "P1","P2","P3","P4","P5","P6","P7","P8","P9","P10","P11",
+     "S1","S2","S3","S4","S5","S6","S7","S8","S9","S10","S11"],
+    horizontal=True
+)
 
-        zip_buf.seek(0)
-        st.success("ZIP 생성 완료!")
-        st.download_button(
-            "⬇️ ZIP 다운로드",
-            data=zip_buf,
-            file_name=zip_name,
-            mime="application/zip"
-        )
+# ✅ 내용 선택(안 적어도 됨)
+desc = st.text_input("내용 (선택)  예: 균열, 박리, 누수")
 
+# ✅ ZIP 내부 폴더 분류 옵션
+make_folders = st.checkbox("ZIP 내부를 폴더별로 분류해서 저장", value=True)
+st.caption("폴더 구조: 교량/방향/위치/ (원하면 교량/위치/ 로 더 줄일 수 있음)")
+
+uploaded = st.file_uploader(
+    "사진 선택 (여러 장 가능)",
+    type=["jpg","jpeg","png","heic","heif"],
+    accept_multiple_files=True
+)
+
+# ======================================
+# 사진 저장
+# ======================================
+if st.button("➕ 사진 추가"):
+    if not (uploaded and bridge):
+        st.warning("사진 / 교량은 필수입니다.")
+    else:
+        bridge_s = safe_text(bridge)
+        direction_s = safe_text(direction)
+        location_s = safe_text(location)
+        desc_s = safe_text(desc)
+
+        added = 0
+        for file in uploaded:
+            data = load_image_bytes(file)
+            if data is None:
+                continue
+
+            # 파일명: 교량-방향-위치(-내용).jpg  (내용 있으면 포함)
+            parts = [bridge_s, direction_s, location_s]
+            if desc_s:
+                parts.append(desc_s)
+
+            filename = DELIM.join(parts) + ".jpg"
+            filename = unique_name(filename, st.session_state["used_names"])
+
+            # ✅ ZIP 내부 경로(폴더 분류)
+            if make_folders:
+                arcname = f"{bridge_s}/{direction_s}/{location_s}/{filename}"
+            else:
+                arcname = filename
+
+            st.session_state["saved_images"].append((arcname, data))
+            st.session_state["saved_names"].append(arcname)
+            added += 1
+
+        st.success(f"추가 완료: {added}장 / 현재 저장된 사진 수: {len(st.session_state['saved_names'])}장")
+
+# ======================================
+# 저장 예정 표시
+# ======================================
+if st.session_state["saved_names"]:
+    st.markdown("### 📄 저장 예정 경로/파일명")
+    st.caption("ZIP 파일 안에 아래 경로로 저장됩니다.")
+    for name in st.session_state["saved_names"]:
+        st.text(name)
+
+# ======================================
+# ZIP 다운로드
+# ======================================
+if st.session_state["saved_images"]:
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for arcname, data in st.session_state["saved_images"]:
+            zf.writestr(arcname, data)
+
+    zip_buf.seek(0)
+
+    zip_bridge = safe_text(bridge) if bridge else "점검사진"
+
+    st.download_button(
+        "📦 ZIP 전체 저장",
+        data=zip_buf,
+        file_name=f"{zip_bridge}_점검사진.zip",
+        mime="application/zip"
+    )
+
+# ======================================
+# 전체 초기화
+# ======================================
 st.markdown("---")
-st.caption("※ 이 앱은 사진을 '업로드 저장'하지 않고, 네 폴더의 파일을 읽어서 ZIP만 생성합니다(로컬 실행 기준).")
+if st.button("🔄 전체 초기화"):
+    st.session_state.clear()
+    st.rerun()
