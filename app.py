@@ -83,11 +83,42 @@ CHO = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","
 
 def get_choseong(text):
     result = ""
-    for ch in text템""
-검사진 폴더 자동정리 시스템")
+    for ch in text:
+        if '가' <= ch <= '힣':
+            code = ord(ch) - ord('가')
+            result += CHO[code // (21 * 28)]
+        else:
+            result += ch
+    return result
+
+def advanced_filter(keyword, bridges):
+    if not keyword:
+        return bridges
+
+    k_cho = get_choseong(keyword)
+    exact, starts, contains, chosung = [], [], [], []
+
+    for b in bridges:
+        b_cho = get_choseong(b)
+        if b == keyword:
+            exact.append(b)
+        elif b.startswith(keyword):
+            starts.append(b)
+        elif keyword in b:
+            contains.append(b)
+        elif k_cho in b_cho:
+            chosung.append(b)
+
+    return exact + starts + contains + chosung
+
+# ======================================
+# UI
+# ======================================
+st.title(" 점검사진 파일명 생성기")
 
 search = st.text_input("교량 검색")
-bridge_list = advanced_filterbridge = st.selectbox("교량 선택", bridge_list)
+bridge_list = advanced_filter(search, bridges)
+bridge = st.selectbox("교량 선택", bridge_list)
 
 direction = st.selectbox("방향", ["순천", "영암"])
 
@@ -188,4 +219,3 @@ st.markdown("---")
 if st.button("🔄 전체 초기화"):
     st.session_state.clear()
     st.rerun()
-
