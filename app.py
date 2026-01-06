@@ -29,7 +29,7 @@ def load_image(uploaded):
     if img.mode != "RGB":
         img = img.convert("RGB")
     buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=95)
+    img.save(buf, format="JPEG", quality=100)
     buf.seek(0)
     return buf.getvalue()
 
@@ -52,13 +52,13 @@ LOCATION_OPTIONS = [
 # ======================================
 # 탭 GUI
 # ======================================
-tab1, tab2 = st.tabs(["📷 1페이지 : 사진 저장", "📦 2페이지 : 사진 분류 / ZIP"])
+tab1, tab2 = st.tabs(["1페이지 : 사진 저장", " 2페이지 : 사진 분류 / ZIP"])
 
 # ======================================
 # 1페이지 : 파일명 생성
 # ======================================
 with tab1:
-    st.header("📷 사진 파일명 생성")
+    st.header("사진 파일명 생성")
 
     bridge = st.selectbox("교량", bridges)
     direction = st.selectbox("방향", ["순천", "영암"])
@@ -80,7 +80,7 @@ with tab1:
         filename = DELIM.join(parts) + ".jpg"
 
         st.download_button(
-            "📥 파일명 적용해서 저장",
+            "파일명 적용해서 저장",
             data=img_bytes,
             file_name=filename,
             mime="image/jpeg"
@@ -88,13 +88,12 @@ with tab1:
 
         st.success(f"저장될 파일명: {filename}")
 
-    st.info("✔ 현장에서는 여기서 저장 → 나중에 2페이지에서 한꺼번에 분류")
 
 # ======================================
 # 2페이지 : 분류 & ZIP
 # ======================================
 with tab2:
-    st.header("📦 사진 선택 → 폴더 분류 → ZIP")
+    st.header("사진 선택 → 폴더 분류 → ZIP")
 
     uploaded_files = st.file_uploader(
         "사진 여러 장 선택",
@@ -108,7 +107,7 @@ with tab2:
     )
 
     if uploaded_files:
-        st.markdown("### 📄 ZIP에 포함할 파일 선택")
+        st.markdown("### ZIP에 포함할 파일 선택")
 
         for i, f in enumerate(uploaded_files):
             if f"chk{i}" not in st.session_state:
@@ -118,7 +117,7 @@ with tab2:
 
         st.markdown("---")
 
-        if st.button("📦 ZIP 생성"):
+        if st.button("ZIP 생성"):
             zip_buf = io.BytesIO()
             with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
                 for i, f in enumerate(uploaded_files):
@@ -145,3 +144,4 @@ with tab2:
 
     else:
         st.info("사진을 업로드하면 분류 리스트가 표시됩니다.")
+
